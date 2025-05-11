@@ -170,9 +170,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               product!.images.isNotEmpty
                                   ? product!.images[_currentImageIndex]
                                   : 'https://via.placeholder.com/300',
-                          height: isMobile ? 200 : 300,
+                          height: isMobile ? 400 : 400,
                           width: double.infinity,
-                          fit: BoxFit.cover,
+                          fit: BoxFit.fitHeight,
                           placeholder:
                               (context, url) => const Center(
                                 child: CircularProgressIndicator(),
