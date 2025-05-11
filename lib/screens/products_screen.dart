@@ -1,0 +1,302 @@
+import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import '../models/product.dart';
+import 'home_screen.dart';
+import 'cart_screen.dart';
+import 'profile_screen.dart';
+import 'product_detail_screen.dart';
+import '../components/product_card.dart';
+
+class ProductsScreen extends StatefulWidget {
+  const ProductsScreen({Key? key}) : super(key: key);
+
+  @override
+  _ProductsScreenState createState() => _ProductsScreenState();
+}
+
+class _ProductsScreenState extends State<ProductsScreen> {
+  final ApiService apiService = ApiService();
+  List<Product> products = [];
+  bool _isRailExpanded = false; // Track NavigationRail expansion on tablet
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final loadedProducts = await apiService.getProducts();
+      setState(() {
+        products = loadedProducts;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading products: $e')));
+    }
+  }
+
+  // Reusable navigation builder for Drawer and NavigationRail
+  Widget _buildNavigation(
+    BuildContext context, {
+    required bool isMobile,
+    required bool isTablet,
+    required bool isDesktop,
+  }) {
+    final destinations = [
+      NavigationDestination(
+        icon: Icons.home,
+        label: 'Home',
+        route: const HomeScreen(),
+        isSelected: false,
+      ),
+      NavigationDestination(
+        icon: Icons.store,
+        label: 'Products',
+        route: const ProductsScreen(),
+        isSelected: true,
+      ),
+      NavigationDestination(
+        icon: Icons.shopping_cart,
+        label: 'Cart',
+        route: const CartScreen(),
+        isSelected: false,
+      ),
+      NavigationDestination(
+        icon: Icons.person,
+        label: 'Profile',
+        route: const ProfileScreen(),
+        isSelected: false,
+      ),
+    ];
+
+    if (isMobile) {
+      return Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.computer,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    'Oltron Store',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      fontSize: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...destinations.map(
+              (dest) => ListTile(
+                leading: Icon(dest.icon),
+                title: Text(
+                  dest.label,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                selected: dest.isSelected,
+                onTap: () {
+                  Navigator.pop(context); // Close drawer
+                  if (!dest.isSelected) {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => dest.route),
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return NavigationRail(
+        extended: isDesktop || (isTablet && _isRailExpanded),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        selectedIndex: 1, // Products is selected
+        onDestinationSelected: (index) {
+          if (index != 1) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => destinations[index].route,
+              ),
+            );
+          }
+        },
+        leading: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.computer,
+                    size: 24,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  if (isDesktop || _isRailExpanded) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      'Oltron Store',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (isTablet)
+              IconButton(
+                icon: Icon(
+                  _isRailExpanded ? Icons.arrow_left : Icons.arrow_right,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isRailExpanded = !_isRailExpanded;
+                  });
+                },
+              ),
+          ],
+        ),
+        destinations:
+            destinations
+                .map(
+                  (dest) => NavigationRailDestination(
+                    icon: Icon(dest.icon),
+                    label: Text(dest.label),
+                    selectedIcon: Icon(
+                      dest.icon,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                  ),
+                )
+                .toList(),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1200;
+    final isDesktop = screenWidth >= 1200;
+    final crossAxisCount =
+        isMobile
+            ? 2
+            : isTablet
+            ? 3
+            : 4;
+
+    final scaffold = Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Products',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontSize: isMobile ? 20 : 24),
+        ),
+        actions: [
+          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.chat), onPressed: () {}),
+        ],
+        automaticallyImplyLeading: isMobile,
+      ),
+      drawer:
+          isMobile
+              ? _buildNavigation(
+                context,
+                isMobile: true,
+                isTablet: false,
+                isDesktop: false,
+              )
+              : null,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: isMobile ? 8.0 : 12.0,
+                mainAxisSpacing: isMobile ? 8.0 : 12.0,
+                childAspectRatio: isMobile ? 0.7 : 0.75,
+              ),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                final double discount = 0.2; // 20% discount placeholder
+                final double rating = 3.0; // 3.0 rating placeholder
+                final double discountedPrice = product.price * (1 - discount);
+
+                return ProductCard(
+                  product: product,
+                  discount: discount,
+                  rating: rating,
+                  discountedPrice: discountedPrice,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) =>
+                                ProductDetailScreen(productId: product.id),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    return isMobile
+        ? scaffold
+        : Row(
+          children: [
+            _buildNavigation(
+              context,
+              isMobile: false,
+              isTablet: isTablet,
+              isDesktop: isDesktop,
+            ),
+            Expanded(child: scaffold),
+          ],
+        );
+  }
+}
+
+class NavigationDestination {
+  final IconData icon;
+  final String label;
+  final Widget route;
+  final bool isSelected;
+
+  NavigationDestination({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.isSelected,
+  });
+}
