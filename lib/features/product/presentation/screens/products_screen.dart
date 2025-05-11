@@ -1,19 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../core/widgets/discount_badge.dart';
+import '../../../../core/widgets/rating_widget.dart';
+import '../../domain/entities/product.dart';
+import '../../domain/repositories/product_repository.dart';
+import '../../domain/usecases/get_products.dart';
+import '../widgets/product_card.dart';
 import 'home_screen.dart';
-import 'products_screen.dart';
-import 'cart_screen.dart';
+import 'product_detail_screen.dart';
+import '../../../cart/presentation/screens/cart_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+class ProductsScreen extends StatefulWidget {
+  const ProductsScreen({Key? key}) : super(key: key);
 
   @override
-  _ProfileScreenState createState() => _ProfileScreenState();
+  _ProductsScreenState createState() => _ProductsScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isRailExpanded = false; // Track NavigationRail expansion on tablet
+class _ProductsScreenState extends State<ProductsScreen> {
+  List<Product> products = [];
+  bool _isRailExpanded = false;
+  String? _productsError;
 
-  // Reusable navigation builder for Drawer and NavigationRail
+  @override
+  void initState() {
+    super.initState();
+    // Defer the loading until after the first frame is rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProducts();
+    });
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final getProducts = GetProducts(
+        Provider.of<ProductRepository>(context, listen: false),
+      );
+      final loadedProducts = await getProducts();
+      setState(() {
+        products = loadedProducts;
+        _productsError = null;
+      });
+    } catch (e) {
+      setState(() {
+        _productsError = 'Error loading products: $e';
+      });
+    }
+  }
+
   Widget _buildNavigation(
     BuildContext context, {
     required bool isMobile,
@@ -31,7 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         icon: Icons.store,
         label: 'Products',
         route: const ProductsScreen(),
-        isSelected: false,
+        isSelected: true,
       ),
       NavigationDestination(
         icon: Icons.shopping_cart,
@@ -43,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         icon: Icons.person,
         label: 'Profile',
         route: const ProfileScreen(),
-        isSelected: true,
+        isSelected: false,
       ),
     ];
 
@@ -83,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 selected: dest.isSelected,
                 onTap: () {
-                  Navigator.pop(context); // Close drawer
+                  Navigator.pop(context);
                   if (!dest.isSelected) {
                     Navigator.pushReplacement(
                       context,
@@ -100,9 +135,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return NavigationRail(
         extended: isDesktop || (isTablet && _isRailExpanded),
         backgroundColor: Theme.of(context).colorScheme.surface,
-        selectedIndex: 3, // Profile is selected
+        selectedIndex: 1,
         onDestinationSelected: (index) {
-          if (index != 3) {
+          if (index != 1) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -157,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     label: Text(dest.label),
                     selectedIcon: Icon(
                       dest.icon,
-                      color: Theme.of(context).colorScheme.secondary,
+                      color: Theme.of(context).colorScheme.surface,
                     ),
                   ),
                 )
@@ -172,18 +207,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isMobile = screenWidth < 600;
     final isTablet = screenWidth >= 600 && screenWidth < 1200;
     final isDesktop = screenWidth >= 1200;
+    final crossAxisCount =
+        isMobile
+            ? 2
+            : isTablet
+            ? 3
+            : 4;
+
+    // Show snackbar for error if it exists
+    if (_productsError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_productsError!)));
+        _productsError = null; // Reset error after showing
+      });
+    }
 
     final scaffold = Scaffold(
       appBar: AppBar(
         title: Text(
-          'Profile',
+          'Products',
           style: Theme.of(
             context,
           ).textTheme.titleLarge?.copyWith(fontSize: isMobile ? 20 : 24),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.settings), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.logout), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.chat), onPressed: () {}),
         ],
         automaticallyImplyLeading: isMobile,
       ),
@@ -199,47 +251,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: isMobile ? 40 : 60,
-                    backgroundImage: const NetworkImage(
-                      'https://via.placeholder.com/150',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'John Doe', // Placeholder user name
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontSize: isMobile ? 20 : 24,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'johndoe@example.com', // Placeholder email
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: isMobile ? 14 : 16,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'My Orders',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontSize: isMobile ? 18 : 20,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No orders yet.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: isMobile ? 14 : 16,
-                    ),
-                  ),
-                ],
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: isMobile ? 8.0 : 12.0,
+                mainAxisSpacing: isMobile ? 8.0 : 12.0,
+                childAspectRatio: isMobile ? 0.7 : 0.75,
               ),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final product = products[index];
+                final double discount = 0.2;
+                final double rating = 3.0;
+                final double discountedPrice = product.price * (1 - discount);
+
+                return ProductCard(
+                  product: product,
+                  discount: discount,
+                  rating: rating,
+                  discountedPrice: discountedPrice,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) =>
+                                ProductDetailScreen(productId: product.id),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           );
         },

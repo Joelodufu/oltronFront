@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../services/api_service.dart';
-import '../models/product.dart';
-import 'home_screen.dart';
-import 'products_screen.dart';
-import 'profile_screen.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/providers/cart_provider.dart';
+import '../../../product/presentation/screens/home_screen.dart';
+import '../../../product/presentation/screens/products_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({Key? key}) : super(key: key);
@@ -15,34 +16,12 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  final ApiService apiService = ApiService();
-  List<Product> cartItems = [];
-  bool _isRailExpanded = false; // Track NavigationRail expansion on tablet
+  bool _isRailExpanded = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadCartItems(); // Simulate loading cart items (replace with actual cart data)
-  }
+  void _buyAll(BuildContext context) async {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final cartItems = cartProvider.cartItems;
 
-  Future<void> _loadCartItems() async {
-    // Simulate fetching cart items (replace with real cart data from a backend or state management)
-    final products = await apiService.getProducts();
-    setState(() {
-      cartItems = products.sublist(
-        0,
-        2,
-      ); // Example: Add first 2 products to cart
-    });
-  }
-
-  void _removeItem(int index) {
-    setState(() {
-      cartItems.removeAt(index);
-    });
-  }
-
-  void _buyAll() async {
     if (cartItems.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -50,20 +29,20 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    final String phoneNumber =
-        '+1234567890'; // Replace with your WhatsApp number
+    final String phoneNumber = AppConstants.whatsappNumber;
     String message = 'Hello, I want to buy the following items:\n\n';
 
-    for (var product in cartItems) {
+    for (var cartItem in cartItems) {
       message +=
-          'Product: ${product.name}\n'
-          'Price: ₦${product.price}\n'
-          'Description: ${product.description}\n'
-          'Image: ${product.images.isNotEmpty ? product.images[0] : 'No image available'}\n\n\n'; // Big spaces with extra newlines
+          'Product: ${cartItem.product.name}\n'
+          'Price: ₦${cartItem.product.price}\n'
+          'Quantity: ${cartItem.quantity}\n'
+          'Description: ${cartItem.product.description}\n'
+          'Image: ${cartItem.product.images.isNotEmpty ? cartItem.product.images[0] : 'No image available'}\n\n\n';
     }
 
     message +=
-        'Total: ₦${cartItems.map((p) => p.price).fold(0.0, (a, b) => a + b)}\n\nPlease confirm the order!';
+        'Total: ₦${cartProvider.totalPrice.toStringAsFixed(2)}\n\nPlease confirm the order!';
 
     final String encodedMessage = Uri.encodeComponent(message);
     final String whatsappUrl =
@@ -78,7 +57,6 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  // Reusable navigation builder for Drawer and NavigationRail
   Widget _buildNavigation(
     BuildContext context, {
     required bool isMobile,
@@ -148,7 +126,7 @@ class _CartScreenState extends State<CartScreen> {
                 ),
                 selected: dest.isSelected,
                 onTap: () {
-                  Navigator.pop(context); // Close drawer
+                  Navigator.pop(context);
                   if (!dest.isSelected) {
                     Navigator.pushReplacement(
                       context,
@@ -165,7 +143,7 @@ class _CartScreenState extends State<CartScreen> {
       return NavigationRail(
         extended: isDesktop || (isTablet && _isRailExpanded),
         backgroundColor: Theme.of(context).colorScheme.surface,
-        selectedIndex: 2, // Cart is selected
+        selectedIndex: 2,
         onDestinationSelected: (index) {
           if (index != 2) {
             Navigator.pushReplacement(
@@ -222,7 +200,7 @@ class _CartScreenState extends State<CartScreen> {
                     label: Text(dest.label),
                     selectedIcon: Icon(
                       dest.icon,
-                      color: Theme.of(context).colorScheme.secondary,
+                      color: Theme.of(context).colorScheme.surface,
                     ),
                   ),
                 )
@@ -233,14 +211,13 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cartProvider = Provider.of<CartProvider>(context);
+    final cartItems = cartProvider.cartItems;
+
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
     final isTablet = screenWidth >= 600 && screenWidth < 1200;
     final isDesktop = screenWidth >= 1200;
-    final total =
-        cartItems.isEmpty
-            ? 0.0
-            : cartItems.map((p) => p.price).fold(0.0, (a, b) => a + b);
 
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -287,14 +264,14 @@ class _CartScreenState extends State<CartScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: cartItems.length,
                         itemBuilder: (context, index) {
-                          final product = cartItems[index];
+                          final cartItem = cartItems[index];
                           return Card(
                             margin: EdgeInsets.all(isMobile ? 8.0 : 12.0),
                             child: ListTile(
                               leading: CachedNetworkImage(
                                 imageUrl:
-                                    product.images.isNotEmpty
-                                        ? product.images[0]
+                                    cartItem.product.images.isNotEmpty
+                                        ? cartItem.product.images[0]
                                         : 'https://via.placeholder.com/50',
                                 width: isMobile ? 50 : 70,
                                 height: isMobile ? 50 : 70,
@@ -308,21 +285,41 @@ class _CartScreenState extends State<CartScreen> {
                                         const Icon(Icons.error),
                               ),
                               title: Text(
-                                product.name,
+                                cartItem.product.name,
                                 style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(fontSize: isMobile ? 14 : 16),
                               ),
-                              subtitle: Text(
-                                '₦${product.price}',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontSize: isMobile ? 12 : 14),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '₦${cartItem.product.price} x ${cartItem.quantity}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium?.copyWith(
+                                      fontSize: isMobile ? 12 : 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Total: ₦${(cartItem.product.price * cartItem.quantity).toStringAsFixed(2)}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium?.copyWith(
+                                      fontSize: isMobile ? 12 : 14,
+                                    ),
+                                  ),
+                                ],
                               ),
                               trailing: IconButton(
                                 icon: const Icon(
                                   Icons.delete,
                                   color: Colors.red,
                                 ),
-                                onPressed: () => _removeItem(index),
+                                onPressed: () {
+                                  cartProvider.removeFromCart(
+                                    cartItem.product.id,
+                                  );
+                                },
                               ),
                             ),
                           );
@@ -330,44 +327,84 @@ class _CartScreenState extends State<CartScreen> {
                       ),
                       Padding(
                         padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
                           children: [
-                            Text(
-                              'Total:',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontSize: isMobile ? 16 : 18),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Total',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontSize: isMobile ? 18 : 20),
+                                ),
+                                Text(
+                                  '₦${cartProvider.totalPrice.toStringAsFixed(2)}',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleLarge?.copyWith(
+                                    fontSize: isMobile ? 18 : 20,
+                                    color:
+                                        Theme.of(context).colorScheme.secondary,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '₦${total.toStringAsFixed(2)}',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.titleMedium?.copyWith(
-                                fontSize: isMobile ? 16 : 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () => _buyAll(context),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Buy All',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge?.copyWith(
+                                        fontSize: isMobile ? 14 : 16,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      cartProvider.clearCart();
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Cart cleared!'),
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Clear Cart',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge?.copyWith(
+                                        fontSize: isMobile ? 14 : 16,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
-                        child: ElevatedButton(
-                          onPressed: _buyAll,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            minimumSize: const Size(double.infinity, 50),
-                          ),
-                          child: Text(
-                            'Buy All',
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodyLarge?.copyWith(
-                              fontSize: isMobile ? 16 : 18,
-                              color: Colors.white,
-                            ),
-                          ),
                         ),
                       ),
                     ],

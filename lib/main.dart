@@ -1,75 +1,64 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'screens/home_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'core/providers/cart_provider.dart';
+import 'features/product/data/datasources/product_datasource.dart';
+import 'features/product/data/repositories/product_repository_impl.dart';
+import 'features/product/domain/repositories/product_repository.dart';
+import 'features/product/presentation/screens/home_screen.dart';
+import 'features/profile/data/datasources/profile_datasource.dart';
+import 'features/profile/data/repositories/profile_repository_impl.dart';
+import 'features/profile/domain/repositories/profile_repository.dart';
 
 void main() {
-  runApp(const OltronApp());
+  runApp(const MyApp());
 }
 
-class OltronApp extends StatelessWidget {
-  const OltronApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Oltron Store',
-      theme: ThemeData(
-        colorScheme: ColorScheme.light(
-          primary: const Color(0xFF00695C), // Deep Teal
-          secondary: const Color(0xFFFF6F61), // Coral
-          surface: const Color(0xFFF5F5F5), // Light Gray
-          onPrimary: Colors.white,
-          onSecondary: Colors.white,
-          onSurface: const Color(0xFF333333), // Dark Gray
+    return MultiProvider(
+      providers: [
+        // Provide ProductRepository
+        Provider<ProductRepository>(
+          create:
+              (_) =>
+                  ProductRepositoryImpl(ProductDataSourceImpl(http.Client())),
         ),
-        textTheme: GoogleFonts.robotoTextTheme(
-          Theme.of(context).textTheme,
-        ).copyWith(
-          titleLarge: GoogleFonts.roboto(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-          headlineSmall: GoogleFonts.roboto(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-          bodyLarge: GoogleFonts.roboto(
-            fontSize: 16,
-            fontWeight: FontWeight.normal,
-          ),
-          bodyMedium: GoogleFonts.roboto(
-            fontSize: 14,
-            fontWeight: FontWeight.normal,
-          ),
-          labelMedium: GoogleFonts.roboto(
-            fontSize: 12,
-            fontWeight: FontWeight.normal,
-          ),
+        // Provide ProfileRepository
+        Provider<ProfileRepository>(
+          create:
+              (_) =>
+                  ProfileRepositoryImpl(ProfileDataSourceImpl(http.Client())),
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00695C), // Deep Teal
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+        // Provide CartProvider
+        ChangeNotifierProvider<CartProvider>(create: (_) => CartProvider()),
+      ],
+      child: MaterialApp(
+        title: 'Oltron Store',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          colorScheme: const ColorScheme.light(
+            primary: Colors.blue,
+            secondary: Colors.orange,
+            surface: Colors.white,
+            onPrimary: Colors.white,
+            onSecondary: Colors.white,
+            onSurface: Colors.black,
+          ),
+          textTheme: const TextTheme(
+            headlineSmall: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            bodyLarge: TextStyle(fontSize: 16),
+            bodyMedium: TextStyle(fontSize: 14),
+            labelMedium: TextStyle(fontSize: 12),
           ),
         ),
-        cardTheme: CardTheme(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          color: Colors.white,
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: const Color(0xFF00695C), // Deep Teal
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F5F5), // Light Gray
+        home: const HomeScreen(),
       ),
-      home: const HomeScreen(),
     );
   }
 }

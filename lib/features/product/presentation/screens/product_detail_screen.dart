@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../services/api_service.dart';
-import '../models/product.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:oltron/features/product/domain/repositories/product_repository.dart';
+import 'package:provider/provider.dart';
 import 'package:uni_links/uni_links.dart';
 import 'dart:async';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/providers/cart_provider.dart';
+import '../../domain/entities/product.dart';
+import '../../domain/usecases/get_product_by_id.dart';
+import '../../../cart/domain/entities/cart_item.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final int productId;
@@ -17,7 +22,6 @@ class ProductDetailScreen extends StatefulWidget {
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  final ApiService apiService = ApiService();
   Product? product;
   int _currentImageIndex = 0;
   StreamSubscription? _sub;
@@ -30,7 +34,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   void _initDeepLinking() async {
-    // Handle initial deep link when the app is opened
     try {
       final initialLink = await getInitialLink();
       if (initialLink != null && initialLink.contains('product/')) {
@@ -49,7 +52,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       // Handle error
     }
 
-    // Listen for deep links while the app is running
     _sub = linkStream.listen(
       (String? link) {
         if (link != null && link.contains('product/')) {
@@ -79,7 +81,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Future<void> _loadProduct() async {
     try {
-      final loadedProduct = await apiService.getProductById(widget.productId);
+      final getProductById = GetProductById(
+        Provider.of<ProductRepository>(context, listen: false),
+      );
+      final loadedProduct = await getProductById(widget.productId);
       setState(() {
         product = loadedProduct;
       });
@@ -93,8 +98,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void _launchWhatsApp() async {
     if (product == null) return;
 
-    final String phoneNumber =
-        '+1234567890'; // Replace with your WhatsApp number
+    final String phoneNumber = AppConstants.whatsappNumber;
     final String message =
         'Hello, I am interested in this product:\n\n'
         'Name: ${product!.name}\n'
@@ -136,6 +140,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  void _addToCart() {
+    if (product == null) return;
+
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    cartProvider.addToCart(CartItem(product: product!, quantity: 1));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Added ${product!.name} to cart')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -162,7 +176,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Image Carousel
                     Stack(
                       children: [
                         CachedNetworkImage(
@@ -220,7 +233,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ],
                       ],
                     ),
-                    // Thumbnails
                     if (product!.images.length > 1)
                       SizedBox(
                         height: isMobile ? 60 : 80,
@@ -256,7 +268,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           },
                         ),
                       ),
-                    // Product Details
                     Padding(
                       padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
                       child: Column(
@@ -288,15 +299,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             children: [
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Added ${product!.name} to cart',
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                  onPressed: _addToCart,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor:
                                         Theme.of(context).colorScheme.primary,

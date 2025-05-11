@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../models/product.dart';
-import 'rating_widget.dart';
-import 'discount_badge.dart';
+import 'package:provider/provider.dart';
+import '../../../../core/providers/cart_provider.dart';
+import '../../../../core/widgets/discount_badge.dart';
+import '../../../../core/widgets/rating_widget.dart';
+import '../../domain/entities/product.dart';
+import '../../../cart/domain/entities/cart_item.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -19,6 +22,14 @@ class ProductCard extends StatelessWidget {
     required this.discountedPrice,
     required this.onTap,
   }) : super(key: key);
+
+  void _addToCart(BuildContext context) {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    cartProvider.addToCart(CartItem(product: product, quantity: 1));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Added ${product.name} to cart')));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +109,7 @@ class ProductCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       ElevatedButton(
-                        onPressed: onTap, // Navigate to ProductDetailScreen
+                        onPressed: () => _addToCart(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey[850],
                           foregroundColor: Colors.white,

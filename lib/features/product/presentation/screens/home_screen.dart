@@ -1,15 +1,19 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/api_service.dart';
-import '../models/product.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
+import '../../../../core/providers/cart_provider.dart';
+import '../../../../core/widgets/discount_badge.dart';
+import '../../../../core/widgets/rating_widget.dart';
+import '../../domain/entities/product.dart';
+import '../../domain/repositories/product_repository.dart';
+import '../../domain/usecases/get_categories.dart';
+import '../../domain/usecases/get_products.dart';
+import '../widgets/product_card.dart';
 import 'product_detail_screen.dart';
-import 'products_screen.dart';
-import 'cart_screen.dart';
-import 'profile_screen.dart';
-import '../components/product_card.dart';
-import '../components/discount_badge.dart';
-import '../components/rating_widget.dart';
+import '../../../cart/presentation/screens/cart_screen.dart';
+import '../../presentation/screens/products_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -19,51 +23,62 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final ApiService apiService = ApiService();
   List<Product> products = [];
   List<String> categories = [];
   String? selectedCategory;
   final TextEditingController searchController = TextEditingController();
-  bool _isShiftRightPressed = false; // Track Shift Right key state
-  bool _isRailExpanded = false; // Track NavigationRail expansion on tablet
+  bool _isShiftRightPressed = false;
+  bool _isRailExpanded = false;
+  String? _categoryError;
+  String? _productsError;
 
   @override
   void initState() {
     super.initState();
-    _loadCategories();
-    _loadProducts();
+    // Defer the loading until after the first frame is rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCategories();
+      _loadProducts();
+    });
   }
 
   Future<void> _loadCategories() async {
     try {
-      final loadedCategories = await apiService.getCategories();
+      final getCategories = GetCategories(
+        Provider.of<ProductRepository>(context, listen: false),
+      );
+      final loadedCategories = await getCategories();
       setState(() {
         categories = loadedCategories;
+        _categoryError = null;
       });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error loading categories: $e')));
+      setState(() {
+        _categoryError = 'Error loading categories: $e';
+      });
     }
   }
 
   Future<void> _loadProducts() async {
     try {
-      final loadedProducts = await apiService.getProducts(
+      final getProducts = GetProducts(
+        Provider.of<ProductRepository>(context, listen: false),
+      );
+      final loadedProducts = await getProducts(
         category: selectedCategory,
         search: searchController.text.isEmpty ? null : searchController.text,
       );
       setState(() {
         products = loadedProducts;
+        _productsError = null;
       });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error loading products: $e')));
+      setState(() {
+        _productsError = 'Error loading products: $e';
+      });
     }
   }
 
-  // Reusable navigation builder for Drawer and NavigationRail
   Widget _buildNavigation(
     BuildContext context, {
     required bool isMobile,
@@ -133,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 selected: dest.isSelected,
                 onTap: () {
-                  Navigator.pop(context); // Close drawer
+                  Navigator.pop(context);
                   if (!dest.isSelected) {
                     Navigator.pushReplacement(
                       context,
@@ -150,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return NavigationRail(
         extended: isDesktop || (isTablet && _isRailExpanded),
         backgroundColor: Theme.of(context).colorScheme.surface,
-        selectedIndex: 0, // Home is selected
+        selectedIndex: 0,
         onDestinationSelected: (index) {
           if (index != 0) {
             Navigator.pushReplacement(
@@ -207,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: Text(dest.label),
                     selectedIcon: Icon(
                       dest.icon,
-                      color: Theme.of(context).colorScheme.secondary,
+                      color: Theme.of(context).colorScheme.surface,
                     ),
                   ),
                 )
@@ -231,6 +246,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final avatarRadius = isMobile ? 24.0 : 32.0;
     final adsWidth = isMobile ? screenWidth : screenWidth * 0.8;
 
+    // Show snackbars for errors if they exist
+    if (_categoryError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_categoryError!)));
+        _categoryError = null; // Reset error after showing
+      });
+    }
+    if (_productsError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_productsError!)));
+        _productsError = null; // Reset error after showing
+      });
+    }
+
     final scaffold = Scaffold(
       appBar: AppBar(
         title: Text(
@@ -243,16 +276,13 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              showSearch(
-                context: context,
-                delegate: ProductSearchDelegate(apiService),
-              );
+              showSearch(context: context, delegate: ProductSearchDelegate());
             },
           ),
           IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
           IconButton(icon: const Icon(Icons.chat), onPressed: () {}),
         ],
-        automaticallyImplyLeading: isMobile, // Show hamburger only on mobile
+        automaticallyImplyLeading: isMobile,
       ),
       drawer:
           isMobile
@@ -268,7 +298,6 @@ class _HomeScreenState extends State<HomeScreen> {
           return SingleChildScrollView(
             child: Column(
               children: [
-                // Ads Card
                 if (products.isNotEmpty && products[0].images.isNotEmpty)
                   Container(
                     width: adsWidth,
@@ -367,7 +396,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                // Category Bar
                 SizedBox(
                   height: isMobile ? 80 : 100,
                   child: ListView.builder(
@@ -424,7 +452,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                 ),
-                // Product Cards
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -438,8 +465,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: products.length,
                   itemBuilder: (context, index) {
                     final product = products[index];
-                    final double discount = 0.2; // 20% discount placeholder
-                    final double rating = 3.0; // 3.0 rating placeholder
+                    final double discount = 0.2;
+                    final double rating = 3.0;
                     final double discountedPrice =
                         product.price * (1 - discount);
 
@@ -499,9 +526,7 @@ class NavigationDestination {
 }
 
 class ProductSearchDelegate extends SearchDelegate {
-  final ApiService apiService;
-
-  ProductSearchDelegate(this.apiService);
+  ProductSearchDelegate();
 
   @override
   List<Widget>? buildActions(BuildContext context) {
@@ -538,7 +563,9 @@ class ProductSearchDelegate extends SearchDelegate {
             : 4;
 
     return FutureBuilder<List<Product>>(
-      future: apiService.getProducts(search: query),
+      future: GetProducts(
+        Provider.of<ProductRepository>(context, listen: false),
+      )(search: query),
       builder: (context, snapshot) {
         if (snapshot.hasData) {
           final products = snapshot.data!;

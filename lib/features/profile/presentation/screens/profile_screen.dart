@@ -1,44 +1,50 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../models/product.dart';
-import 'home_screen.dart';
-import 'cart_screen.dart';
-import 'profile_screen.dart';
-import 'product_detail_screen.dart';
-import '../components/product_card.dart';
+import 'package:provider/provider.dart';
+import '../../../product/presentation/screens/home_screen.dart';
+import '../../../product/presentation/screens/products_screen.dart';
+import '../../../cart/presentation/screens/cart_screen.dart';
+import '../../domain/entities/profile.dart';
+import '../../domain/repositories/profile_repository.dart';
+import '../../domain/usecases/get_profile.dart';
 
-class ProductsScreen extends StatefulWidget {
-  const ProductsScreen({Key? key}) : super(key: key);
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({Key? key}) : super(key: key);
 
   @override
-  _ProductsScreenState createState() => _ProductsScreenState();
+  _ProfileScreenState createState() => _ProfileScreenState();
 }
 
-class _ProductsScreenState extends State<ProductsScreen> {
-  final ApiService apiService = ApiService();
-  List<Product> products = [];
-  bool _isRailExpanded = false; // Track NavigationRail expansion on tablet
+class _ProfileScreenState extends State<ProfileScreen> {
+  Profile? profile;
+  bool _isRailExpanded = false;
+  String? _profileError;
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    // Defer the loading until after the first frame is rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProfile();
+    });
   }
 
-  Future<void> _loadProducts() async {
+  Future<void> _loadProfile() async {
     try {
-      final loadedProducts = await apiService.getProducts();
+      final getProfile = GetProfile(
+        Provider.of<ProfileRepository>(context, listen: false),
+      );
+      final loadedProfile = await getProfile();
       setState(() {
-        products = loadedProducts;
+        profile = loadedProfile;
+        _profileError = null;
       });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error loading products: $e')));
+      setState(() {
+        _profileError = 'Error loading profile: $e';
+      });
     }
   }
 
-  // Reusable navigation builder for Drawer and NavigationRail
   Widget _buildNavigation(
     BuildContext context, {
     required bool isMobile,
@@ -56,7 +62,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         icon: Icons.store,
         label: 'Products',
         route: const ProductsScreen(),
-        isSelected: true,
+        isSelected: false,
       ),
       NavigationDestination(
         icon: Icons.shopping_cart,
@@ -68,7 +74,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         icon: Icons.person,
         label: 'Profile',
         route: const ProfileScreen(),
-        isSelected: false,
+        isSelected: true,
       ),
     ];
 
@@ -108,7 +114,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
                 selected: dest.isSelected,
                 onTap: () {
-                  Navigator.pop(context); // Close drawer
+                  Navigator.pop(context);
                   if (!dest.isSelected) {
                     Navigator.pushReplacement(
                       context,
@@ -125,9 +131,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
       return NavigationRail(
         extended: isDesktop || (isTablet && _isRailExpanded),
         backgroundColor: Theme.of(context).colorScheme.surface,
-        selectedIndex: 1, // Products is selected
+        selectedIndex: 3,
         onDestinationSelected: (index) {
-          if (index != 1) {
+          if (index != 3) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -182,7 +188,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     label: Text(dest.label),
                     selectedIcon: Icon(
                       dest.icon,
-                      color: Theme.of(context).colorScheme.secondary,
+                      color: Theme.of(context).colorScheme.surface,
                     ),
                   ),
                 )
@@ -197,25 +203,28 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final isMobile = screenWidth < 600;
     final isTablet = screenWidth >= 600 && screenWidth < 1200;
     final isDesktop = screenWidth >= 1200;
-    final crossAxisCount =
-        isMobile
-            ? 2
-            : isTablet
-            ? 3
-            : 4;
+
+    // Show snackbar for error if it exists
+    if (_profileError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_profileError!)));
+        _profileError = null; // Reset error after showing
+      });
+    }
 
     final scaffold = Scaffold(
       appBar: AppBar(
         title: Text(
-          'Products',
+          'Profile',
           style: Theme.of(
             context,
           ).textTheme.titleLarge?.copyWith(fontSize: isMobile ? 20 : 24),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.notifications), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.chat), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.settings), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.logout), onPressed: () {}),
         ],
         automaticallyImplyLeading: isMobile,
       ),
@@ -228,47 +237,83 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 isDesktop: false,
               )
               : null,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: isMobile ? 8.0 : 12.0,
-                mainAxisSpacing: isMobile ? 8.0 : 12.0,
-                childAspectRatio: isMobile ? 0.7 : 0.75,
-              ),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                final double discount = 0.2; // 20% discount placeholder
-                final double rating = 3.0; // 3.0 rating placeholder
-                final double discountedPrice = product.price * (1 - discount);
-
-                return ProductCard(
-                  product: product,
-                  discount: discount,
-                  rating: rating,
-                  discountedPrice: discountedPrice,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) =>
-                                ProductDetailScreen(productId: product.id),
+      body:
+          profile == null
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: CircleAvatar(
+                        radius: isMobile ? 50 : 70,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        child: Icon(
+                          Icons.person,
+                          size: isMobile ? 50 : 70,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
-          );
-        },
-      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Personal Information',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontSize: isMobile ? 20 : 24),
+                    ),
+                    const SizedBox(height: 16),
+                    Card(
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Name: ${profile!.name}',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(fontSize: isMobile ? 16 : 18),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Email: ${profile!.email}',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(fontSize: isMobile ? 16 : 18),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Phone: ${profile!.phone}',
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(fontSize: isMobile ? 16 : 18),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Implement edit profile functionality
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 24,
+                        ),
+                      ),
+                      child: Text(
+                        'Edit Profile',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontSize: isMobile ? 14 : 16,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
     );
 
     return isMobile
