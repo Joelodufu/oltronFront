@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/widgets/discount_badge.dart';
-import '../../../../core/widgets/rating_widget.dart';
 import '../../domain/entities/product.dart';
 import '../../domain/repositories/product_repository.dart';
 import '../../domain/usecases/get_products.dart';
@@ -26,7 +24,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   void initState() {
     super.initState();
-    // Defer the loading until after the first frame is rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadProducts();
     });
@@ -192,7 +189,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     label: Text(dest.label),
                     selectedIcon: Icon(
                       dest.icon,
-                      color: Theme.of(context).colorScheme.surface,
+                      color: Theme.of(context).colorScheme.secondary,
                     ),
                   ),
                 )
@@ -259,7 +256,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: isMobile ? 8.0 : 12.0,
                 mainAxisSpacing: isMobile ? 8.0 : 12.0,
-                childAspectRatio: isMobile ? 0.7 : 0.75,
+                childAspectRatio: 0.65, // Adjusted to prevent stretching
               ),
               itemCount: products.length,
               itemBuilder: (context, index) {

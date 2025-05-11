@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
 import '../../../../core/providers/cart_provider.dart';
 import '../../../../core/widgets/discount_badge.dart';
 import '../../../../core/widgets/rating_widget.dart';
+import '../../../carousel/domain/entities/carousel_item.dart';
+import '../../../carousel/domain/repositories/carousel_repository.dart';
+import '../../../carousel/domain/usecases/get_carousel_items.dart';
 import '../../domain/entities/product.dart';
 import '../../domain/repositories/product_repository.dart';
 import '../../domain/usecases/get_categories.dart';
@@ -15,6 +20,8 @@ import '../../../cart/presentation/screens/cart_screen.dart';
 import '../../presentation/screens/products_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
+final logger = Logger();
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -24,6 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Product> products = [];
+  List<CarouselItem> carouselItems = [];
   List<String> categories = [];
   String? selectedCategory;
   final TextEditingController searchController = TextEditingController();
@@ -31,14 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isRailExpanded = false;
   String? _categoryError;
   String? _productsError;
+  String? _carouselError;
 
   @override
   void initState() {
     super.initState();
-    // Defer the loading until after the first frame is rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCategories();
       _loadProducts();
+      _loadCarouselItems();
     });
   }
 
@@ -75,6 +84,23 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       setState(() {
         _productsError = 'Error loading products: $e';
+      });
+    }
+  }
+
+  Future<void> _loadCarouselItems() async {
+    try {
+      final getCarouselItems = GetCarouselItems(
+        Provider.of<CarouselRepository>(context, listen: false),
+      );
+      final loadedCarouselItems = await getCarouselItems();
+      setState(() {
+        carouselItems = loadedCarouselItems;
+        _carouselError = null;
+      });
+    } catch (e) {
+      setState(() {
+        _carouselError = 'Error loading carousel items: $e';
       });
     }
   }
@@ -222,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: Text(dest.label),
                     selectedIcon: Icon(
                       dest.icon,
-                      color: Theme.of(context).colorScheme.surface,
+                      color: Theme.of(context).colorScheme.secondary,
                     ),
                   ),
                 )
@@ -246,13 +272,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final avatarRadius = isMobile ? 24.0 : 32.0;
     final adsWidth = isMobile ? screenWidth : screenWidth * 0.8;
 
-    // Show snackbars for errors if they exist
     if (_categoryError != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(_categoryError!)));
-        _categoryError = null; // Reset error after showing
+        _categoryError = null;
       });
     }
     if (_productsError != null) {
@@ -260,7 +285,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(_productsError!)));
-        _productsError = null; // Reset error after showing
+        _productsError = null;
+      });
+    }
+    if (_carouselError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_carouselError!)));
+        _carouselError = null;
       });
     }
 
@@ -298,102 +331,83 @@ class _HomeScreenState extends State<HomeScreen> {
           return SingleChildScrollView(
             child: Column(
               children: [
-                if (products.isNotEmpty && products[0].images.isNotEmpty)
+                // Carousel Advert Section
+                if (carouselItems.isNotEmpty)
                   Container(
                     width: adsWidth,
                     margin: EdgeInsets.all(isMobile ? 8.0 : 16.0),
-                    padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surface.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CachedNetworkImage(
-                          imageUrl: products[0].images[0],
-                          width: isMobile ? 80 : 120,
-                          height: isMobile ? 80 : 120,
-                          fit: BoxFit.cover,
-                          placeholder:
-                              (context, url) => const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                          errorWidget:
-                              (context, url, error) => const Icon(Icons.error),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                products[0].name,
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(fontSize: isMobile ? 18 : 22),
-                              ),
-                              Row(
-                                children: [
-                                  Text(
-                                    '₦${products[0].price}',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium?.copyWith(
-                                      decoration: TextDecoration.lineThrough,
-                                      color: Colors.grey[600],
-                                      fontSize: isMobile ? 14 : 16,
+                    child: CarouselSlider(
+                      options: CarouselOptions(
+                        height: isMobile ? 150.0 : 200.0,
+                        enlargeCenterPage: false,
+                        autoPlay: true,
+                        autoPlayInterval: const Duration(seconds: 3),
+                        viewportFraction: 0.9,
+                        aspectRatio: 16 / 9,
+                        initialPage: 0,
+                        enableInfiniteScroll: true,
+                        scrollDirection: Axis.horizontal,
+                      ),
+                      items:
+                          carouselItems.map((carouselItem) {
+                            return Builder(
+                              builder: (BuildContext context) {
+                                return GestureDetector(
+                                  // Only enable navigation if productId is not null
+                                  onTap:
+                                      carouselItem.productId != null
+                                          ? () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder:
+                                                    (context) =>
+                                                        ProductDetailScreen(
+                                                          productId:
+                                                              carouselItem
+                                                                  .productId!,
+                                                        ),
+                                              ),
+                                            );
+                                          }
+                                          : null, // Disable onTap if productId is null
+                                  child: Container(
+                                    width: MediaQuery.of(context).size.width,
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 5.0,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10.0),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black26,
+                                          blurRadius: 5.0,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(10.0),
+                                      child: CachedNetworkImage(
+                                        imageUrl: carouselItem.imageUrl,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        placeholder:
+                                            (context, url) => const Center(
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            ),
+                                        errorWidget:
+                                            (context, url, error) =>
+                                                const Icon(Icons.error),
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '₦${(products[0].price * 0.8).toStringAsFixed(2)}',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.copyWith(
-                                      color:
-                                          Theme.of(
-                                            context,
-                                          ).colorScheme.secondary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: isMobile ? 14 : 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                products[0].description,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontSize: isMobile ? 12 : 14),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) => ProductDetailScreen(
-                                            productId: products[0].id,
-                                          ),
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  'Shop Now',
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodyLarge?.copyWith(
-                                    fontSize: isMobile ? 14 : 16,
-                                    color:
-                                        Theme.of(context).colorScheme.onPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                                );
+                              },
+                            );
+                          }).toList(),
                     ),
                   ),
                 SizedBox(
@@ -460,7 +474,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: isMobile ? 8.0 : 12.0,
                     mainAxisSpacing: isMobile ? 8.0 : 12.0,
-                    childAspectRatio: isMobile ? 0.7 : 0.75,
+                    childAspectRatio: 0.65, // Adjusted to prevent stretching
                   ),
                   itemCount: products.length,
                   itemBuilder: (context, index) {
@@ -575,64 +589,30 @@ class ProductSearchDelegate extends SearchDelegate {
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: isMobile ? 8.0 : 12.0,
               mainAxisSpacing: isMobile ? 8.0 : 12.0,
-              childAspectRatio: isMobile ? 0.7 : 0.75,
+              childAspectRatio: 0.65, // Adjusted to prevent stretching
             ),
             itemCount: products.length,
             itemBuilder: (context, index) {
               final product = products[index];
-              return Card(
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) =>
-                                ProductDetailScreen(productId: product.id),
-                      ),
-                    );
-                  },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CachedNetworkImage(
-                        imageUrl:
-                            product.images.isNotEmpty
-                                ? product.images[0]
-                                : 'https://via.placeholder.com/150',
-                        height: isMobile ? 100 : 140,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        placeholder:
-                            (context, url) => const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                        errorWidget:
-                            (context, url, error) => const Icon(Icons.error),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.all(isMobile ? 8.0 : 12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              product.name,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(fontSize: isMobile ? 14 : 16),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              '₦${product.price}',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(fontSize: isMobile ? 12 : 14),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              final double discount = 0.2;
+              final double rating = 3.0;
+              final double discountedPrice = product.price * (1 - discount);
+
+              return ProductCard(
+                product: product,
+                discount: discount,
+                rating: rating,
+                discountedPrice: discountedPrice,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) =>
+                              ProductDetailScreen(productId: product.id),
+                    ),
+                  );
+                },
               );
             },
           );

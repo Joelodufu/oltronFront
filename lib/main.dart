@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'core/providers/cart_provider.dart';
+import 'features/carousel/data/datasources/carousel_datasource.dart';
+import 'features/carousel/data/repositories/carousel_repository_impl.dart';
+import 'features/carousel/domain/repositories/carousel_repository.dart';
 import 'features/product/data/datasources/product_datasource.dart';
 import 'features/product/data/repositories/product_repository_impl.dart';
 import 'features/product/domain/repositories/product_repository.dart';
@@ -35,6 +38,12 @@ class MyApp extends StatelessWidget {
         ),
         // Provide CartProvider
         ChangeNotifierProvider<CartProvider>(create: (_) => CartProvider()),
+        // Provide CarouselRepository
+        Provider<CarouselRepository>(
+          create:
+              (_) =>
+                  CarouselRepositoryImpl(CarouselDataSourceImpl(http.Client())),
+        ),
       ],
       child: MaterialApp(
         title: 'Oltron Store',
