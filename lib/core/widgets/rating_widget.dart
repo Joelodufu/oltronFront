@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class RatingWidget extends StatelessWidget {
-  final double rating;
+  final int rating;
   final bool isMobile;
 
   const RatingWidget({Key? key, required this.rating, required this.isMobile})

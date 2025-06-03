@@ -35,6 +35,7 @@ class _CartScreenState extends State<CartScreen> {
     for (var cartItem in cartItems) {
       message +=
           'Product: ${cartItem.product.name}\n'
+          'REF: ${cartItem.product.id}\n'
           'Price: ₦${cartItem.product.price}\n'
           'Quantity: ${cartItem.quantity}\n'
           'Description: ${cartItem.product.description}\n'

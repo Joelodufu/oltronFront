@@ -94,7 +94,7 @@ class ProductCard extends StatelessWidget {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '₦${(discountedPrice).toStringAsFixed(2)}',
+                                '₦${(product.price - (product.price * product.discountRate / 100)).toStringAsFixed(2)}',
                                 style: Theme.of(
                                   context,
                                 ).textTheme.bodyLarge?.copyWith(
@@ -105,7 +105,10 @@ class ProductCard extends StatelessWidget {
                               ),
                             ],
                           ),
-                          RatingWidget(rating: rating, isMobile: isMobile),
+                          RatingWidget(
+                            rating: product.discountRate,
+                            isMobile: isMobile,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -145,7 +148,7 @@ class ProductCard extends StatelessWidget {
               Positioned(
                 top: 8,
                 left: 8,
-                child: DiscountBadge(percentage: (discount * 100).toInt()),
+                child: DiscountBadge(percentage: product.discountRate),
               ),
           ],
         ),

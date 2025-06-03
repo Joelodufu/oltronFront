@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:oltron/features/product/domain/repositories/product_repository.dart';
 import 'package:provider/provider.dart';
-import 'package:uni_links/uni_links.dart';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -30,47 +29,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     _loadProduct();
-    _initDeepLinking();
-  }
-
-  void _initDeepLinking() async {
-    try {
-      final initialLink = await getInitialLink();
-      if (initialLink != null && initialLink.contains('product/')) {
-        final uri = Uri.parse(initialLink);
-        final productId = int.tryParse(uri.pathSegments.last);
-        if (productId != null && productId != widget.productId) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ProductDetailScreen(productId: productId),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      // Handle error
-    }
-
-    _sub = linkStream.listen(
-      (String? link) {
-        if (link != null && link.contains('product/')) {
-          final uri = Uri.parse(link);
-          final productId = int.tryParse(uri.pathSegments.last);
-          if (productId != null && productId != widget.productId) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ProductDetailScreen(productId: productId),
-              ),
-            );
-          }
-        }
-      },
-      onError: (err) {
-        // Handle deep link errors
-      },
-    );
   }
 
   @override
@@ -102,6 +60,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final String message =
         'Hello, I am interested in this product:\n\n'
         'Name: ${product!.name}\n'
+        'REF: ${product!.id}\n'
         'Price: ₦${product!.price}\n'
         'Description: ${product!.description}\n'
         'Image: ${product!.images.isNotEmpty ? product!.images[0] : 'No image available'}\n\n'
@@ -155,18 +114,41 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
     final isTablet = screenWidth >= 600 && screenWidth < 1200;
+    final padding =
+        isMobile
+            ? 16.0
+            : isTablet
+            ? 24.0
+            : 32.0;
+    final imageHeight =
+        isMobile
+            ? 300.0
+            : isTablet
+            ? 400.0
+            : 500.0;
 
     return Scaffold(
       appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         title: Text(
           product?.name ?? 'Product Details',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontSize: isMobile ? 20 : 24),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            fontSize: isMobile ? 18 : 22,
+          ),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.share), onPressed: _shareProduct),
-          IconButton(icon: const Icon(Icons.favorite_border), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: _shareProduct,
+            tooltip: 'Share Product',
+          ),
+          IconButton(
+            icon: const Icon(Icons.favorite_border),
+            onPressed: () {},
+            tooltip: 'Add to Favorites',
+          ),
         ],
       ),
       body:
@@ -176,32 +158,45 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Product Image Carousel
                     Stack(
                       children: [
-                        CachedNetworkImage(
-                          imageUrl:
-                              product!.images.isNotEmpty
-                                  ? product!.images[_currentImageIndex]
-                                  : 'https://via.placeholder.com/300',
-                          height: isMobile ? 400 : 400,
+                        Container(
+                          height: imageHeight,
                           width: double.infinity,
-                          fit: BoxFit.fitHeight,
-                          placeholder:
-                              (context, url) => const Center(
-                                child: CircularProgressIndicator(),
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
                               ),
-                          errorWidget:
-                              (context, url, error) => const Icon(Icons.error),
+                            ],
+                          ),
+                          child: CachedNetworkImage(
+                            imageUrl:
+                                product!.images.isNotEmpty
+                                    ? product!.images[_currentImageIndex]
+                                    : 'https://via.placeholder.com/300',
+                            fit: BoxFit.cover,
+                            placeholder:
+                                (context, url) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                            errorWidget:
+                                (context, url, error) =>
+                                    const Icon(Icons.error),
+                          ),
                         ),
                         if (product!.images.length > 1) ...[
                           Positioned(
-                            left: 10,
-                            top: isMobile ? 80 : 130,
+                            left: 16,
+                            top: imageHeight / 2 - 20,
                             child: IconButton(
                               icon: const Icon(
-                                Icons.arrow_left,
+                                Icons.arrow_back_ios,
                                 color: Colors.white,
-                                size: 30,
+                                size: 28,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -210,16 +205,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       product!.images.length;
                                 });
                               },
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black.withOpacity(0.5),
+                                shape: const CircleBorder(),
+                              ),
                             ),
                           ),
                           Positioned(
-                            right: 10,
-                            top: isMobile ? 80 : 130,
+                            right: 16,
+                            top: imageHeight / 2 - 20,
                             child: IconButton(
                               icon: const Icon(
-                                Icons.arrow_right,
+                                Icons.arrow_forward_ios,
                                 color: Colors.white,
-                                size: 30,
+                                size: 28,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -228,14 +227,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       product!.images.length;
                                 });
                               },
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.black.withOpacity(0.5),
+                                shape: const CircleBorder(),
+                              ),
                             ),
                           ),
                         ],
                       ],
                     ),
+                    // Thumbnail Gallery
                     if (product!.images.length > 1)
-                      SizedBox(
-                        height: isMobile ? 60 : 80,
+                      Container(
+                        height: isMobile ? 80 : 100,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           itemCount: product!.images.length,
@@ -248,12 +253,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               },
                               child: Container(
                                 margin: const EdgeInsets.symmetric(
-                                  horizontal: 4.0,
+                                  horizontal: 6,
+                                ),
+                                width: isMobile ? 60 : 80,
+                                height: isMobile ? 60 : 80,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color:
+                                        _currentImageIndex == index
+                                            ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                            : Colors.grey.shade300,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: CachedNetworkImage(
                                   imageUrl: product!.images[index],
-                                  width: isMobile ? 50 : 70,
-                                  height: isMobile ? 50 : 70,
                                   fit: BoxFit.cover,
                                   placeholder:
                                       (context, url) => const Center(
@@ -268,15 +285,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           },
                         ),
                       ),
-                    Padding(
-                      padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
+                    // Product Details
+                    Container(
+                      margin: EdgeInsets.all(padding),
+                      padding: EdgeInsets.all(padding),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             product!.name,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontSize: isMobile ? 20 : 24),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 20 : 24,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -284,17 +318,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             style: Theme.of(
                               context,
                             ).textTheme.titleLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.secondary,
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w600,
                               fontSize: isMobile ? 18 : 22,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           Text(
                             product!.description,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontSize: isMobile ? 14 : 16),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.copyWith(
+                              fontSize: isMobile ? 14 : 16,
+                              color: Colors.grey.shade700,
+                            ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 24),
                           Row(
                             children: [
                               Expanded(
@@ -303,41 +342,51 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor:
                                         Theme.of(context).colorScheme.primary,
+                                    foregroundColor:
+                                        Theme.of(context).colorScheme.onPrimary,
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
+                                      vertical: 16,
+                                      horizontal: 16,
                                     ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 2,
                                   ),
                                   child: Text(
                                     'Add to Cart',
                                     style: Theme.of(
                                       context,
-                                    ).textTheme.bodyLarge?.copyWith(
+                                    ).textTheme.labelLarge?.copyWith(
                                       fontSize: isMobile ? 14 : 16,
-                                      color:
-                                          Theme.of(
-                                            context,
-                                          ).colorScheme.onPrimary,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton(
                                   onPressed: _launchWhatsApp,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
+                                    backgroundColor: Colors.green.shade600,
+                                    foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
+                                      vertical: 16,
+                                      horizontal: 16,
                                     ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 2,
                                   ),
                                   child: Text(
                                     'Buy Now',
                                     style: Theme.of(
                                       context,
-                                    ).textTheme.bodyLarge?.copyWith(
+                                    ).textTheme.labelLarge?.copyWith(
                                       fontSize: isMobile ? 14 : 16,
-                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),

@@ -4,6 +4,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../../core/providers/cart_provider.dart';
 import '../../../../core/widgets/discount_badge.dart';
 import '../../../../core/widgets/rating_widget.dart';
@@ -40,15 +41,40 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _categoryError;
   String? _productsError;
   String? _carouselError;
+  bool _isLoading = true; // Add loading state
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadCategories();
-      _loadProducts();
-      _loadCarouselItems();
+      _loadData();
     });
+  }
+
+  @override
+  void dispose() {
+    searchController
+        .dispose(); // Dispose of the controller to prevent memory leaks
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      await Future.wait([
+        _loadCategories(),
+        _loadProducts(),
+        _loadCarouselItems(),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -57,14 +83,18 @@ class _HomeScreenState extends State<HomeScreen> {
         Provider.of<ProductRepository>(context, listen: false),
       );
       final loadedCategories = await getCategories();
-      setState(() {
-        categories = loadedCategories;
-        _categoryError = null;
-      });
+      if (mounted) {
+        setState(() {
+          categories = loadedCategories;
+          _categoryError = null;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _categoryError = 'Error loading categories: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _categoryError = 'Error loading categories: $e';
+        });
+      }
     }
   }
 
@@ -77,14 +107,18 @@ class _HomeScreenState extends State<HomeScreen> {
         category: selectedCategory,
         search: searchController.text.isEmpty ? null : searchController.text,
       );
-      setState(() {
-        products = loadedProducts;
-        _productsError = null;
-      });
+      if (mounted) {
+        setState(() {
+          products = loadedProducts;
+          _productsError = null;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _productsError = 'Error loading products: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _productsError = 'Error loading products: $e';
+        });
+      }
     }
   }
 
@@ -94,14 +128,18 @@ class _HomeScreenState extends State<HomeScreen> {
         Provider.of<CarouselRepository>(context, listen: false),
       );
       final loadedCarouselItems = await getCarouselItems();
-      setState(() {
-        carouselItems = loadedCarouselItems;
-        _carouselError = null;
-      });
+      if (mounted) {
+        setState(() {
+          carouselItems = loadedCarouselItems;
+          _carouselError = null;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _carouselError = 'Error loading carousel items: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _carouselError = 'Error loading carousel items: $e';
+        });
+      }
     }
   }
 
@@ -257,6 +295,85 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Skeleton widget for the carousel
+  Widget _buildCarouselSkeleton(bool isMobile, double adsWidth) {
+    return Container(
+      width: adsWidth,
+      margin: EdgeInsets.all(isMobile ? 8.0 : 16.0),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: Container(
+          height: isMobile ? 150.0 : 200.0,
+          decoration: BoxDecoration(
+            color: Colors.grey,
+            borderRadius: BorderRadius.circular(10.0),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Skeleton widget for the categories
+  Widget _buildCategoriesSkeleton(bool isMobile) {
+    return SizedBox(
+      height: isMobile ? 80 : 100,
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: 5, // Simulate 5 categories
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16.0 : 24.0),
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 12.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: isMobile ? 24 : 28,
+                    backgroundColor: Colors.grey,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(width: 50, height: 12, color: Colors.grey),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // Skeleton widget for the product grid
+  Widget _buildProductGridSkeleton(bool isMobile, int crossAxisCount) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: isMobile ? 8.0 : 12.0,
+        mainAxisSpacing: isMobile ? 8.0 : 12.0,
+        childAspectRatio: 0.65,
+      ),
+      itemCount: crossAxisCount * 2, // Simulate 2 rows of products
+      itemBuilder: (context, index) {
+        return Shimmer.fromColors(
+          baseColor: Colors.grey[300]!,
+          highlightColor: Colors.grey[100]!,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.grey,
+              borderRadius: BorderRadius.circular(10.0),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -272,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final avatarRadius = isMobile ? 24.0 : 32.0;
     final adsWidth = isMobile ? screenWidth : screenWidth * 0.8;
 
-    if (_categoryError != null) {
+    if (_categoryError != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(
           context,
@@ -280,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _categoryError = null;
       });
     }
-    if (_productsError != null) {
+    if (_productsError != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(
           context,
@@ -288,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _productsError = null;
       });
     }
-    if (_carouselError != null) {
+    if (_carouselError != null && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(
           context,
@@ -329,181 +446,226 @@ class _HomeScreenState extends State<HomeScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
-            child: Column(
-              children: [
-                // Carousel Advert Section
-                if (carouselItems.isNotEmpty)
-                  Container(
-                    width: adsWidth,
-                    margin: EdgeInsets.all(isMobile ? 8.0 : 16.0),
-                    child: CarouselSlider(
-                      options: CarouselOptions(
-                        height: isMobile ? 150.0 : 200.0,
-                        enlargeCenterPage: false,
-                        autoPlay: true,
-                        autoPlayInterval: const Duration(seconds: 3),
-                        viewportFraction: 0.9,
-                        aspectRatio: 16 / 9,
-                        initialPage: 0,
-                        enableInfiniteScroll: true,
-                        scrollDirection: Axis.horizontal,
-                      ),
-                      items:
-                          carouselItems.map((carouselItem) {
-                            return Builder(
-                              builder: (BuildContext context) {
-                                return GestureDetector(
-                                  // Only enable navigation if productId is not null
-                                  onTap:
-                                      carouselItem.productId != null
-                                          ? () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder:
-                                                    (context) =>
-                                                        ProductDetailScreen(
-                                                          productId:
-                                                              carouselItem
-                                                                  .productId!,
-                                                        ),
+            child:
+                _isLoading
+                    ? Column(
+                      children: [
+                        // Skeleton for Carousel
+                        _buildCarouselSkeleton(isMobile, adsWidth),
+                        // Skeleton for Categories
+                        _buildCategoriesSkeleton(isMobile),
+                        // Skeleton for Product Grid
+                        _buildProductGridSkeleton(isMobile, crossAxisCount),
+                      ],
+                    )
+                    : Column(
+                      children: [
+                        // Carousel Advert Section
+                        if (carouselItems.isNotEmpty)
+                          Container(
+                            width: adsWidth,
+                            margin: EdgeInsets.all(isMobile ? 8.0 : 16.0),
+                            child: CarouselSlider(
+                              options: CarouselOptions(
+                                height: isMobile ? 150.0 : 200.0,
+                                enlargeCenterPage: false,
+                                autoPlay: true,
+                                autoPlayInterval: const Duration(seconds: 3),
+                                viewportFraction: 0.9,
+                                aspectRatio: 16 / 9,
+                                initialPage: 0,
+                                enableInfiniteScroll: true,
+                                scrollDirection: Axis.horizontal,
+                              ),
+                              items:
+                                  carouselItems.map((carouselItem) {
+                                    return Builder(
+                                      builder: (BuildContext context) {
+                                        return GestureDetector(
+                                          onTap:
+                                              carouselItem.productId != null
+                                                  ? () {
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder:
+                                                            (
+                                                              context,
+                                                            ) => ProductDetailScreen(
+                                                              productId:
+                                                                  carouselItem
+                                                                      .productId!,
+                                                            ),
+                                                      ),
+                                                    );
+                                                  }
+                                                  : null,
+                                          child: Container(
+                                            width:
+                                                MediaQuery.of(
+                                                  context,
+                                                ).size.width,
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 5.0,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(10.0),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black26,
+                                                  blurRadius: 5.0,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(10.0),
+                                              child: CachedNetworkImage(
+                                                imageUrl: carouselItem.imageUrl,
+                                                fit: BoxFit.cover,
+                                                width: double.infinity,
+                                                height: double.infinity,
+                                                placeholder:
+                                                    (
+                                                      context,
+                                                      url,
+                                                    ) => const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                errorWidget:
+                                                    (context, url, error) =>
+                                                        const Icon(Icons.error),
                                               ),
-                                            );
-                                          }
-                                          : null, // Disable onTap if productId is null
-                                  child: Container(
-                                    width: MediaQuery.of(context).size.width,
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 5.0,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10.0),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          blurRadius: 5.0,
-                                          offset: const Offset(0, 2),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }).toList(),
+                            ),
+                          ),
+                        // Categories Section
+                        SizedBox(
+                          height: isMobile ? 80 : 100,
+                          child: Center(
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: categories.length,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 16.0 : 24.0,
+                              ),
+                              shrinkWrap: true,
+                              itemBuilder: (context, index) {
+                                final category = categories[index];
+                                return Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 8.0 : 12.0,
+                                  ),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        selectedCategory =
+                                            selectedCategory == category
+                                                ? null
+                                                : category;
+                                        _loadProducts();
+                                      });
+                                    },
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: isMobile ? 24 : 28,
+                                          backgroundColor:
+                                              selectedCategory == category
+                                                  ? Theme.of(
+                                                    context,
+                                                  ).colorScheme.secondary
+                                                  : Colors.grey.shade200,
+                                          child: Icon(
+                                            category == 'Laptop'
+                                                ? Icons.computer
+                                                : category == 'RAM'
+                                                ? Icons
+                                                    .data_thresholding_rounded
+                                                : category == 'Processor'
+                                                ? Icons.memory
+                                                : category == 'Battery'
+                                                ? Icons.battery_0_bar
+                                                : Icons.videocam,
+                                            color:
+                                                selectedCategory == category
+                                                    ? Theme.of(
+                                                      context,
+                                                    ).colorScheme.onSecondary
+                                                    : Colors.grey,
+                                            size: isMobile ? 20 : 26,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          category,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.labelMedium?.copyWith(
+                                            fontSize: isMobile ? 12 : 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          textAlign: TextAlign.center,
                                         ),
                                       ],
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(10.0),
-                                      child: CachedNetworkImage(
-                                        imageUrl: carouselItem.imageUrl,
-                                        fit: BoxFit.cover,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        placeholder:
-                                            (context, url) => const Center(
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
-                                        errorWidget:
-                                            (context, url, error) =>
-                                                const Icon(Icons.error),
-                                      ),
                                     ),
                                   ),
                                 );
                               },
-                            );
-                          }).toList(),
-                    ),
-                  ),
-                SizedBox(
-                  height: isMobile ? 80 : 100,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: categories.length,
-                    itemBuilder: (context, index) {
-                      final category = categories[index];
-                      return Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 8.0 : 12.0,
-                        ),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              selectedCategory =
-                                  selectedCategory == category
-                                      ? null
-                                      : category;
-                              _loadProducts();
-                            });
-                          },
-                          child: Column(
-                            children: [
-                              CircleAvatar(
-                                radius: avatarRadius,
-                                backgroundColor:
-                                    selectedCategory == category
-                                        ? Theme.of(
-                                          context,
-                                        ).colorScheme.secondary
-                                        : Colors.grey.shade200,
-                                child: Icon(
-                                  category == 'Processor'
-                                      ? Icons.computer
-                                      : Icons.videocam,
-                                  color:
-                                      selectedCategory == category
-                                          ? Theme.of(
-                                            context,
-                                          ).colorScheme.onSecondary
-                                          : Colors.grey,
-                                  size: isMobile ? 24 : 32,
-                                ),
-                              ),
-                              Text(
-                                category,
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(fontSize: isMobile ? 12 : 14),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: isMobile ? 8.0 : 12.0,
-                    mainAxisSpacing: isMobile ? 8.0 : 12.0,
-                    childAspectRatio: 0.65, // Adjusted to prevent stretching
-                  ),
-                  itemCount: products.length,
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    final double discount = 0.2;
-                    final double rating = 3.0;
-                    final double discountedPrice =
-                        product.price * (1 - discount);
+                        // Product Grid Section
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: isMobile ? 8.0 : 12.0,
+                                mainAxisSpacing: isMobile ? 8.0 : 12.0,
+                                childAspectRatio: 0.65,
+                              ),
+                          itemCount: products.length,
+                          itemBuilder: (context, index) {
+                            final product = products[index];
+                            final double discount = 0.2;
+                            final double rating = 3.0;
+                            final double discountedPrice =
+                                product.price * (1 - discount);
 
-                    return ProductCard(
-                      product: product,
-                      discount: discount,
-                      rating: rating,
-                      discountedPrice: discountedPrice,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) =>
-                                    ProductDetailScreen(productId: product.id),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
+                            return ProductCard(
+                              product: product,
+                              discount: discount,
+                              rating: rating,
+                              discountedPrice: discountedPrice,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => ProductDetailScreen(
+                                          productId: product.id,
+                                        ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
           );
         },
       ),
@@ -589,7 +751,7 @@ class ProductSearchDelegate extends SearchDelegate {
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: isMobile ? 8.0 : 12.0,
               mainAxisSpacing: isMobile ? 8.0 : 12.0,
-              childAspectRatio: 0.65, // Adjusted to prevent stretching
+              childAspectRatio: 0.65,
             ),
             itemCount: products.length,
             itemBuilder: (context, index) {

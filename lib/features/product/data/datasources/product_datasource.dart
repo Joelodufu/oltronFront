@@ -51,7 +51,7 @@ class ProductDataSourceImpl implements ProductDataSource {
 
   @override
   Future<List<String>> getCategories() async {
-    final uri = Uri.parse('${AppConstants.baseUrl}/categories');
+    final uri = Uri.parse('${AppConstants.baseUrl}/products/categories');
     final response = await client.get(uri);
 
     if (response.statusCode == 200) {
